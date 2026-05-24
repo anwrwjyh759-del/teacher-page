@@ -8,21 +8,21 @@
   :root{--neon:#b026ff;--neon-glow:0 0 8px #b026ff,0 0 20px #b026ff,0 0 40px #b026ff;--bg:#0a0a0f;}
   *{margin:0;padding:0;box-sizing:border-box;font-family:'Segoe UI',Tahoma,sans-serif;}
   body{background:var(--bg);color:#fff;min-height:100vh;padding:20px;}
-.container{max-width:800px;margin:0 auto;}
+ .container{max-width:800px;margin:0 auto;}
   h1{text-align:center;color:var(--neon);text-shadow:var(--neon-glow);margin-bottom:30px;}
-.login-box,.upload-box{border:2px dashed var(--neon);border-radius:15px;padding:20px;text-align:center;box-shadow:var(--neon-glow);margin-bottom:30px;}
-.upload-box{display:none;}
+ .login-box,.upload-box{border:2px dashed var(--neon);border-radius:15px;padding:20px;text-align:center;box-shadow:var(--neon-glow);margin-bottom:30px;}
+ .upload-box{display:none;}
   input,button{background:#222;color:#fff;border:1px solid var(--neon);padding:10px;border-radius:10px;font-size:1rem;}
   button{background:var(--neon);cursor:pointer;box-shadow:var(--neon-glow);}
   button:hover{transform:scale(1.05);}
-.post{background:#15151f;border:1px solid #2a2a3a;border-radius:15px;padding:15px;margin-bottom:25px;}
-.post img,.post video,.post iframe{width:100%;border-radius:10px;margin-bottom:12px;}
-.actions{display:flex;gap:10px;}
-.action-btn{flex:1;background:transparent;border:1px solid var(--neon);color:var(--neon);padding:10px;border-radius:10px;cursor:pointer;}
-.action-btn:hover{background:var(--neon);color:#fff;box-shadow:var(--neon-glow);}
-.comments{margin-top:10px;display:none;}
-.comments input{width:100%;background:#222;margin-top:8px;}
-.comment{background:#222;padding:8px;border-radius:8px;margin-top:6px;}
+ .post{background:#15151f;border:1px solid #2a2a3a;border-radius:15px;padding:15px;margin-bottom:25px;}
+ .post img,.post video,.post iframe{width:100%;border-radius:10px;margin-bottom:12px;}
+ .actions{display:flex;gap:10px;}
+ .action-btn{flex:1;background:transparent;border:1px solid var(--neon);color:var(--neon);padding:10px;border-radius:10px;cursor:pointer;}
+ .action-btn:hover{background:var(--neon);color:#fff;box-shadow:var(--neon-glow);}
+ .comments{margin-top:10px;display:none;}
+ .comments input{width:100%;background:#222;margin-top:8px;}
+ .comment{background:#222;padding:8px;border-radius:8px;margin-top:6px;}
 </style>
 </head>
 <body>
@@ -35,7 +35,6 @@
   </div>
 
   <div class="upload-box" id="uploadBox">
-    <label for="fileInput" class="upload-btn">ارفع فيديو / صورة / PDF</label>
     <input type="file" id="fileInput" accept="image/*,video/*,.pdf">
     <button onclick="logout()" style="margin-top:10px;background:#444;">خروج</button>
   </div>
@@ -46,8 +45,7 @@
 <script>
 const GITHUB_USERNAME = "anwrwjyh759-del";
 const GITHUB_REPO = "teacher-page";
-const GITHUB_TOKEN = "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"; // حط التوكن بتاعك هنا
-const TEACHER_PASS = "250746"; // غير الباسورد
+const TEACHER_PASS = "250746";
 
 const loginBox = document.getElementById('loginBox');
 const uploadBox = document.getElementById('uploadBox');
@@ -77,59 +75,56 @@ function showTeacherPanel(){
 }
 
 async function uploadFile(e){
-  const file=e.target.files[0];
-  if(!file)return;
-  const base64=await toBase64(file);
+  const file = e.target.files[0];
+  if(!file) return;
 
-  const res=await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/uploads/${Date.now()}-${file.name}`,{
-    method:'PUT',
-    headers:{'Authorization':`token ${GITHUB_TOKEN}`,'Content-Type':'application/json'},
-    body:JSON.stringify({message:'upload',content:base64.split(',')[1]})
+  alert('جاري الرفع... استنى شوية');
+
+  const base64 = await toBase64(file);
+  const content = base64.split(',')[1];
+  const filename = Date.now() + '-' + file.name;
+
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/actions/workflows/upload.yml/dispatches`,{
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      ref: 'main',
+      inputs: {filename: filename, content: content}
+    })
   });
 
-  if(!res.ok){
-    const err = await res.json();
-    alert('خطأ الرفع: ' + err.message);
-    return;
+  if(res.ok){
+    alert('تم الرفع! هتظهر بعد 10 ثواني');
+    setTimeout(loadPosts, 10000);
+  }else{
+    alert('فشل الرفع');
   }
-
-  const data=await res.json();
-  await createIssue(data.content.download_url,file.name);
-}
-
-async function createIssue(url,name){
-  await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues`,{
-    method:'POST',
-    headers:{'Authorization':`token ${GITHUB_TOKEN}`,'Content-Type':'application/json'},
-    body:JSON.stringify({title:name,body:url,labels:['post']})
-  });
-  loadPosts();
 }
 
 async function loadPosts(){
-  const res=await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues?labels=post&state=open`);
-  const issues=await res.json();
-  document.getElementById('posts').innerHTML='';
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues?labels=post&state=open`);
+  const issues = await res.json();
+  document.getElementById('posts').innerHTML = '';
   for(const issue of issues){
-    const comments=await fetch(issue.comments_url).then(r=>r.json());
-    renderPost(issue,comments);
+    const comments = await fetch(issue.comments_url).then(r=>r.json());
+    renderPost(issue, comments);
   }
 }
 
-function renderPost(issue,comments){
-  const url=issue.body;
-  const isVideo=url.match(/\.(mp4|webm|mov)$/);
-  const isPDF=url.match(/\.pdf$/);
-  let mediaHTML='';
-  if(isVideo) mediaHTML=`<video src="${url}" controls></video>`;
-  else if(isPDF) mediaHTML=`<iframe src="${url}" height="400"></iframe>`;
-  else mediaHTML=`<img src="${url}">`;
+function renderPost(issue, comments){
+  const url = issue.body;
+  const isVideo = url.match(/\.(mp4|webm|mov)$/);
+  const isPDF = url.match(/\.pdf$/);
+  let mediaHTML = '';
+  if(isVideo) mediaHTML = `<video src="${url}" controls></video>`;
+  else if(isPDF) mediaHTML = `<iframe src="${url}" height="400"></iframe>`;
+  else mediaHTML = `<img src="${url}">`;
 
-  const likes=comments.filter(c=>c.body==='❤️').length;
+  const likes = comments.filter(c=>c.body==='❤️').length;
 
-  const div=document.createElement('div');
-  div.className='post';
-  div.innerHTML=`
+  const div = document.createElement('div');
+  div.className = 'post';
+  div.innerHTML = `
     ${mediaHTML}
     <div class="actions">
       <button class="action-btn" onclick="likePost(${issue.number})">❤️ لايك <span>${likes}</span></button>
@@ -146,9 +141,9 @@ function renderPost(issue,comments){
 
 async function likePost(n){
   await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues/${n}/comments`,{
-    method:'POST',
-    headers:{'Authorization':`token ${GITHUB_TOKEN}`,'Content-Type':'application/json'},
-    body:JSON.stringify({body:'❤️'})
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({body:'❤️'})
   });
   loadPosts();
 }
@@ -156,9 +151,9 @@ async function likePost(n){
 async function addComment(e,n){
   if(e.key==='Enter'&&e.target.value.trim()){
     await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues/${n}/comments`,{
-      method:'POST',
-      headers:{'Authorization':`token ${GITHUB_TOKEN}`,'Content-Type':'application/json'},
-      body:JSON.stringify({body:e.target.value.trim()})
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({body:e.target.value.trim()})
     });
     e.target.value='';
     loadPosts();
@@ -166,8 +161,8 @@ async function addComment(e,n){
 }
 
 function toggleComments(id){
-  const el=document.getElementById(`comments-${id}`);
-  el.style.display=el.style.display==='block'?'none':'block';
+  const el = document.getElementById(`comments-${id}`);
+  el.style.display = el.style.display==='block'?'none':'block';
 }
 
 function sharePost(id){

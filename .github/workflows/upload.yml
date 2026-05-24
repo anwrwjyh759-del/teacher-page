@@ -42,7 +42,6 @@ EOF
         run: |
           mkdir -p uploads data
           echo "${{ inputs.base64_content }}" | base64 -d > uploads/${{ inputs.file }}
-          # Update posts.json
           python3 << EOF
 import json, os, time
 os.makedirs('data', exist_ok=True)

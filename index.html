@@ -83,7 +83,7 @@ async function uploadFile(e){
   const content = base64.split(',')[1];
   const filename = Date.now() + '-' + file.name.replace(/\s/g,'_');
 
-  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/actions/workflows/upload-file.yml/dispatches`,{
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/actions/workflows/upload.yml/dispatches`,{
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({

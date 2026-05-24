@@ -46,8 +46,8 @@
 <script>
 const GITHUB_USERNAME = "anwrwjih759-del";
 const GITHUB_REPO = "teacher-page";
-const GITHUB_TOKEN = "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";
-const TEACHER_PASS = "250746";
+const GITHUB_TOKEN = "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"; // حط التوكن بتاعك هنا
+const TEACHER_PASS = "250746"; // غير الباسورد
 
 const loginBox = document.getElementById('loginBox');
 const uploadBox = document.getElementById('uploadBox');
@@ -80,15 +80,21 @@ async function uploadFile(e){
   const file=e.target.files[0];
   if(!file)return;
   const base64=await toBase64(file);
+
   const res=await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/contents/uploads/${Date.now()}-${file.name}`,{
     method:'PUT',
     headers:{'Authorization':`token ${GITHUB_TOKEN}`,'Content-Type':'application/json'},
     body:JSON.stringify({message:'upload',content:base64.split(',')[1]})
   });
-  const data=await res.json();
-  if(data.content){
-    await createIssue(data.content.download_url,file.name);
+
+  if(!res.ok){
+    const err = await res.json();
+    alert('خطأ الرفع: ' + err.message);
+    return;
   }
+
+  const data=await res.json();
+  await createIssue(data.content.download_url,file.name);
 }
 
 async function createIssue(url,name){
@@ -176,4 +182,4 @@ function toBase64(file){
 loadPosts();
 </script>
 </body>
-</html> 
+</html>

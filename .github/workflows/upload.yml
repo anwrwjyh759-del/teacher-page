@@ -1,36 +1,69 @@
 name: Upload File
-
 on:
   workflow_dispatch:
     inputs:
-      filename:
+      file_name:
         description: 'File name'
         required: true
-      content:
-        description: 'Base64 content'
+      base64_content:
+        description: 'Base64 file content'
         required: true
-
-permissions:
-  contents: write
-  issues: write
+      delete:
+        description: 'Delete file instead of upload'
+        required: false
+        default: 'false'
 
 jobs:
   upload:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      
+      - name: Delete file
+        if: ${{ inputs.delete == 'true' }}
+        run: |
+          rm -f uploads/${{ inputs.file_name }}
+          # Remove from posts.json
+          python3 << EOF
+import json, os
+path = 'data/posts.json'
+if os.path.exists(path):
+    with open(path) as f:
+        data = json.load(f)
+    data = [p for p in data if p['image'] != 'uploads/${{ inputs.file_name }}']
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+EOF
+      
       - name: Upload file
+        if: ${{ inputs.delete != 'true' }}
         run: |
-          curl -X PUT \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/contents/uploads/${{ github.event.inputs.filename }} \
-            -d '{"message":"upload","content":"${{ github.event.inputs.content }}"}'
-
-      - name: Create Issue
+          mkdir -p uploads data
+          echo "${{ inputs.base64_content }}" | base64 -d > uploads/${{ inputs.file_name }}
+          # Update posts.json
+          python3 << EOF
+import json, os, time
+os.makedirs('data', exist_ok=True)
+path = 'data/posts.json'
+data = []
+if os.path.exists(path):
+    with open(path) as f:
+        data = json.load(f)
+post = {
+    'image': 'uploads/${{ inputs.file_name }}',
+    'time': int(time.time()),
+    'likes': 0,
+    'comments': []
+}
+data.insert(0, post)
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+EOF
+      
+      - name: Commit
         run: |
-          URL="https://raw.githubusercontent.com/${{ github.repository }}/main/uploads/${{ github.event.inputs.filename }}"
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            https://api.github.com/repos/${{ github.repository }}/issues \
-            -d '{"title":"'"${{ github.event.inputs.filename }}"'","body":"'"$URL"'","labels":["post"]}'
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Update posts" || exit 0
+          git push

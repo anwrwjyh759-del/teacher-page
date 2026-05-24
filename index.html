@@ -15,14 +15,13 @@
   input,button{background:#222;color:#fff;border:1px solid var(--neon);padding:10px;border-radius:10px;font-size:1rem;}
   button{background:var(--neon);cursor:pointer;box-shadow:var(--neon-glow);}
   button:hover{transform:scale(1.05);}
- .post{background:#15151f;border:1px solid #2a2a3a;border-radius:15px;padding:15px;margin-bottom:25px;}
+ .post{background:#15151f;border:1px solid #2a2a3a;border-radius:15px;padding:15px;margin-bottom:25px;position:relative;}
  .post img,.post video,.post iframe{width:100%;border-radius:10px;margin-bottom:12px;}
  .actions{display:flex;gap:10px;}
  .action-btn{flex:1;background:transparent;border:1px solid var(--neon);color:var(--neon);padding:10px;border-radius:10px;cursor:pointer;}
  .action-btn:hover{background:var(--neon);color:#fff;box-shadow:var(--neon-glow);}
- .comments{margin-top:10px;display:none;}
- .comments input{width:100%;background:#222;margin-top:8px;}
- .comment{background:#222;padding:8px;border-radius:8px;margin-top:6px;}
+ .delete-btn{border-color:#ff3366;color:#ff3366;}
+ .delete-btn:hover{background:#ff3366;box-shadow:0 0 8px #ff3366,0 0 20px #ff3366;}
 </style>
 </head>
 <body>
@@ -49,8 +48,9 @@ const TEACHER_PASS = "250746";
 
 const loginBox = document.getElementById('loginBox');
 const uploadBox = document.getElementById('uploadBox');
+const isTeacher = localStorage.getItem('isTeacher')==='true';
 
-if(localStorage.getItem('isTeacher')==='true'){
+if(isTeacher){
   showTeacherPanel();
 }
 
@@ -78,96 +78,87 @@ async function uploadFile(e){
   const file = e.target.files[0];
   if(!file) return;
 
-  alert('جاري الرفع... استنى شوية');
-
+  alert('جاري الرفع... استنى 15 ثانية');
   const base64 = await toBase64(file);
   const content = base64.split(',')[1];
-  const filename = Date.now() + '-' + file.name;
+  const filename = Date.now() + '-' + file.name.replace(/\s/g,'_');
 
-  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/actions/workflows/upload.yml/dispatches`,{
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/actions/workflows/upload-file.yml/dispatches`,{
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({
       ref: 'main',
-      inputs: {filename: filename, content: content}
+      inputs: {file_name: filename, base64_content: content, delete: 'false'}
     })
   });
 
   if(res.ok){
-    alert('تم الرفع! هتظهر بعد 10 ثواني');
-    setTimeout(loadPosts, 10000);
+    alert('تم الرفع! هتظهر بعد شوية');
+    setTimeout(loadPosts, 15000);
   }else{
     alert('فشل الرفع');
   }
 }
 
 async function loadPosts(){
-  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues?labels=post&state=open`);
-  const issues = await res.json();
-  document.getElementById('posts').innerHTML = '';
-  for(const issue of issues){
-    const comments = await fetch(issue.comments_url).then(r=>r.json());
-    renderPost(issue, comments);
+  try{
+    const res = await fetch(`https://raw.githubusercontent.com/${GITHUB_USERNAME}/${GITHUB_REPO}/main/data/posts.json?t=${Date.now()}`);
+    const posts = await res.json();
+    document.getElementById('posts').innerHTML = '';
+    if(posts.length===0){
+      document.getElementById('posts').innerHTML = '<p style="text-align:center;color:#888;">مفيش بوستات لسه</p>';
+      return;
+    }
+    posts.forEach(post => renderPost(post));
+  }catch(e){
+    document.getElementById('posts').innerHTML = '<p style="text-align:center;color:#888;">مفيش بوستات لسه</p>';
   }
 }
 
-function renderPost(issue, comments){
-  const url = issue.body;
-  const isVideo = url.match(/\.(mp4|webm|mov)$/);
-  const isPDF = url.match(/\.pdf$/);
+function renderPost(post){
+  const url = post.image;
+  const isVideo = url.match(/\.(mp4|webm|mov)$/i);
+  const isPDF = url.match(/\.pdf$/i);
   let mediaHTML = '';
   if(isVideo) mediaHTML = `<video src="${url}" controls></video>`;
   else if(isPDF) mediaHTML = `<iframe src="${url}" height="400"></iframe>`;
   else mediaHTML = `<img src="${url}">`;
-
-  const likes = comments.filter(c=>c.body==='❤️').length;
 
   const div = document.createElement('div');
   div.className = 'post';
   div.innerHTML = `
     ${mediaHTML}
     <div class="actions">
-      <button class="action-btn" onclick="likePost(${issue.number})">❤️ لايك <span>${likes}</span></button>
-      <button class="action-btn" onclick="toggleComments(${issue.number})">💬 تعليقات</button>
-      <button class="action-btn" onclick="sharePost(${issue.number})">🔗 مشاركة</button>
-    </div>
-    <div class="comments" id="comments-${issue.number}">
-      <input type="text" placeholder="اكتب تعليق واضغط Enter" onkeypress="addComment(event,${issue.number})">
-      ${comments.filter(c=>c.body!=='❤️').map(c=>`<div class="comment">${c.body}</div>`).join('')}
+      <button class="action-btn">❤️ لايك <span>${post.likes || 0}</span></button>
+      <button class="action-btn">💬 تعليقات</button>
+      ${isTeacher? `<button class="action-btn delete-btn" onclick="deletePost('${post.image}')">🗑️ مسح</button>` : ''}
     </div>
   `;
   document.getElementById('posts').appendChild(div);
 }
 
-async function likePost(n){
-  await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues/${n}/comments`,{
+async function deletePost(imagePath){
+  if(!confirm('متأكد عايز تمسح البوست ده؟')) return;
+
+  const filename = imagePath.split('/').pop();
+
+  alert('جاري المسح...');
+
+  const res = await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/actions/workflows/upload-file.yml/dispatches`,{
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({body:'❤️'})
+    body: JSON.stringify({
+      ref: 'main',
+      inputs: {file_name: filename, base64_content: '', delete: 'true'}
+    })
   });
-  loadPosts();
-}
 
-async function addComment(e,n){
-  if(e.key==='Enter'&&e.target.value.trim()){
-    await fetch(`https://api.github.com/repos/${GITHUB_USERNAME}/${GITHUB_REPO}/issues/${n}/comments`,{
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({body:e.target.value.trim()})
-    });
-    e.target.value='';
-    loadPosts();
+  if(res.ok){
+    alert('تم المسح! هتختفي بعد 15 ثانية');
+    setTimeout(loadPosts, 15000);
+  }else{
+    alert('فشل المسح');
   }
-}
-
-function toggleComments(id){
-  const el = document.getElementById(`comments-${id}`);
-  el.style.display = el.style.display==='block'?'none':'block';
-}
-
-function sharePost(id){
-  navigator.clipboard.writeText(window.location.href+'#'+id);
-  alert('تم نسخ الرابط!');
 }
 
 function toBase64(file){

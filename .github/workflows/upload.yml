@@ -27,17 +27,17 @@ jobs:
         run: |
           rm -f uploads/${{ inputs.file }}
           python3 << EOF
-import json, os
-path = 'data/posts.json'
-if os.path.exists(path):
-    with open(path) as f:
+import json, ospath = 'data/posts.json'import os.path.exipathpath):
+
+
+    wopenopen(path) as f:
         data = json.load(f)
-    data = [p for p in data if p['image'] != 'uploads/${{ inputs.file }}']
-    with open(path, 'w') as f:
+    data = [p for p in data if p['image'] != 'uploads/${{ inputs.file }}']with open(path, 'w') as f:
+with
         json.dump(data, f, indent=2, ensure_ascii=False)
 EOF
 
-      - name: Upload file
+      - naUploadload file
         if: ${{ inputs.delete != 'true' }}
         run: |
           mkdir -p uploads data

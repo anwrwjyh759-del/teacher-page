@@ -1,45 +1,47 @@
-name: Upload File
+name: Upload Post
 on:
   workflow_dispatch:
     inputs:
-      file_name:
+      file:
         description: 'File name'
         required: true
       base64_content:
-        description: 'Base64 file content'
+        description: 'Base64 content'
         required: true
       delete:
-        description: 'Delete file instead of upload'
+        description: 'Delete mode'
         required: false
         default: 'false'
 
 jobs:
   upload:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/checkout@v4
-      
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Delete file
         if: ${{ inputs.delete == 'true' }}
         run: |
-          rm -f uploads/${{ inputs.file_name }}
-          # Remove from posts.json
+          rm -f uploads/${{ inputs.file }}
           python3 << EOF
 import json, os
 path = 'data/posts.json'
 if os.path.exists(path):
     with open(path) as f:
         data = json.load(f)
-    data = [p for p in data if p['image'] != 'uploads/${{ inputs.file_name }}']
+    data = [p for p in data if p['image'] != 'uploads/${{ inputs.file }}']
     with open(path, 'w') as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 EOF
-      
+
       - name: Upload file
         if: ${{ inputs.delete != 'true' }}
         run: |
           mkdir -p uploads data
-          echo "${{ inputs.base64_content }}" | base64 -d > uploads/${{ inputs.file_name }}
+          echo "${{ inputs.base64_content }}" | base64 -d > uploads/${{ inputs.file }}
           # Update posts.json
           python3 << EOF
 import json, os, time
@@ -49,8 +51,9 @@ data = []
 if os.path.exists(path):
     with open(path) as f:
         data = json.load(f)
+data = [p for p in data if p['image'] != 'uploads/${{ inputs.file }}']
 post = {
-    'image': 'uploads/${{ inputs.file_name }}',
+    'image': 'uploads/${{ inputs.file }}',
     'time': int(time.time()),
     'likes': 0,
     'comments': []
@@ -59,7 +62,7 @@ data.insert(0, post)
 with open(path, 'w') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
 EOF
-      
+
       - name: Commit
         run: |
           git config user.name "github-actions"

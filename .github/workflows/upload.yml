@@ -1,0 +1,36 @@
+name: Upload File
+
+on:
+  workflow_dispatch:
+    inputs:
+      filename:
+        description: 'File name'
+        required: true
+      content:
+        description: 'Base64 content'
+        required: true
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Upload file
+        run: |
+          curl -X PUT \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/${{ github.repository }}/contents/uploads/${{ github.event.inputs.filename }} \
+            -d '{"message":"upload","content":"${{ github.event.inputs.content }}"}'
+
+      - name: Create Issue
+        run: |
+          URL="https://raw.githubusercontent.com/${{ github.repository }}/main/uploads/${{ github.event.inputs.filename }}"
+          curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            https://api.github.com/repos/${{ github.repository }}/issues \
+            -d '{"title":"'"${{ github.event.inputs.filename }}"'","body":"'"$URL"'","labels":["post"]}'
